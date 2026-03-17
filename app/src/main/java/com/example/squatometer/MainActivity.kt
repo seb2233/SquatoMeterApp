@@ -312,11 +312,13 @@ class MainActivity : AppCompatActivity() {
         //split data by ",", has to have 10 values per sample
         val parts = line.trim().split(",")
 
+        //if formating is not done properly this will show on the phone screen
         if (parts.size != 10) {
             runOnUiThread { tvLiveData.append("Bad format: $line\n") }
             return
         }
 
+        //formating each data point in the sample
         try {
             val timestamp = parts[0].toDouble()
             val distance  = parts[1].toInt()
