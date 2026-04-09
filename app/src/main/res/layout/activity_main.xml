@@ -37,7 +37,14 @@
         android:id="@+id/btnReset"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Reset Device"
+        android:enabled="false"
+        android:text="Reset Device/Disconnect" />
+
+    <Button
+        android:id="@+id/btnSleep"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Sleep Squato-Meter"
         android:enabled="false"/>
 
     <ScrollView

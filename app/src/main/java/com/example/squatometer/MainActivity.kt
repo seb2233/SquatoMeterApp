@@ -21,6 +21,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnRecord: Button
     private lateinit var btnStop: Button
     private lateinit var btnReset: Button
+    private lateinit var btnSleep: Button
+
 
     //state flags to signal where the app is at; like pressing the start button and waiting for the ble to connect
     private var pendingStart = false
@@ -28,6 +30,8 @@ class MainActivity : AppCompatActivity() {
 
     //last sample
     private var lastSampleTime = 0L
+
+
 
     // ble objects:
     // ble connection
@@ -49,6 +53,10 @@ class MainActivity : AppCompatActivity() {
     private val allSamples = mutableListOf<List<Any>>()
 
 
+    //tof will run at a different speed than imu
+    private var lastKnownDistance: Int = 0
+
+
     // for android permissions, arbitrary number/code however
     private val PERMISSION_REQUEST_CODE = 1001
 
@@ -64,6 +72,9 @@ class MainActivity : AppCompatActivity() {
         btnRecord  = findViewById(R.id.btnRecord)
         btnStop    = findViewById(R.id.btnStop)
         btnReset   = findViewById(R.id.btnReset)
+        btnSleep = findViewById(R.id.btnSleep)
+        btnSleep.isEnabled = false
+        btnSleep.setOnClickListener { disconnectAndSleep() }
 
         btnScan.setOnClickListener   { checkPermissionsScan() }
         btnRecord.setOnClickListener { startRecording() }
@@ -127,7 +138,7 @@ class MainActivity : AppCompatActivity() {
         btnScan.isEnabled = false
 
 
-       //this makes it look specifically for a device called Squato-Meter
+       //this makes it look specifically for a device called "Squato-Meter"
         val callback = object : ScanCallback() {
 
             override fun onScanResult(callbackType: Int, result: ScanResult) {
@@ -249,6 +260,7 @@ class MainActivity : AppCompatActivity() {
                 runOnUiThread {
                     btnRecord.isEnabled = true
                     btnReset.isEnabled  = true
+                    btnSleep.isEnabled  = true
                 }
             }
 
@@ -321,7 +333,9 @@ class MainActivity : AppCompatActivity() {
         //formating each data point in the sample
         try {
             val timestamp = parts[0].toDouble()
-            val distance  = parts[1].toInt()
+            val rawDistance = parts[1].toInt()
+            val distance = if (rawDistance == 65535) lastKnownDistance
+            else rawDistance.also { lastKnownDistance = it }
             val roll      = parts[2].toDouble()
             val pitch     = parts[3].toDouble()
             val accX      = parts[4].toDouble()
@@ -350,7 +364,7 @@ class MainActivity : AppCompatActivity() {
                             "Gyro:($gyroRoll, $gyroPitch, $gyroYaw)\n" +
                             "─────────────────────\n"
                 Handler(Looper.getMainLooper()).postDelayed({
-                    tvLiveData.append(display)
+                    tvLiveData.text = display
                     val scrollView = tvLiveData.parent as? android.widget.ScrollView
                     scrollView?.post { scrollView.fullScroll(android.view.View.FOCUS_DOWN) }
                 }, 700)
@@ -517,6 +531,29 @@ class MainActivity : AppCompatActivity() {
 
 
 
+    private fun disconnectAndSleep() {
+        writeCommand("SLEEP")
+        Handler(Looper.getMainLooper()).postDelayed({
+            try {
+                bluetoothGatt?.disconnect()
+                bluetoothGatt?.close()
+            } catch (e: SecurityException) {}
+            bluetoothGatt = null
+            measurementChar = null
+            runOnUiThread {
+                btnRecord.isEnabled = false
+                btnStop.isEnabled   = false
+                btnReset.isEnabled  = false
+                btnSleep.isEnabled  = false
+                btnScan.isEnabled   = true
+                setStatus("Squato-Meter sleeping — press button to wake")
+            }
+        }, 500)
+    }
+
+
+
+
     //clean everything related to ble connection after disconnection
     override fun onDestroy() {
         super.onDestroy()
@@ -529,6 +566,8 @@ class MainActivity : AppCompatActivity() {
         }
         bluetoothGatt = null
     }
+
+
 
     //Ui helper
     private fun setStatus(msg: String) {
